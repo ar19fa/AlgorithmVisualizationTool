@@ -1,0 +1,8 @@
+.row { display:flex; gap:12px; align-items:center; margin-bottom:12px; }
+.vizLayout { display: flex; gap: 20px; align-items: flex-start; }
+.viz { border: 1px solid #333; display: inline-block; }
+.side { width: 360px; }
+.sideTitle { font-weight: 600; margin: 6px 0; }
+pre { background: #f6f6f6; padding: 10px; white-space: pre-wrap; }
+pre { background:#f6f6f6; padding:8px; width:520px; white-space:pre-wrap; }
+body { font-family: system-ui, Arial, sans-serif; padding: 16px; }
