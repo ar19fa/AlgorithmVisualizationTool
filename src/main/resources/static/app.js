@@ -66,12 +66,12 @@ runBtn.addEventListener("click", async () => {
 
   // draw step 0 (no BFS edges yet, just the graph)
   let k = 0;
-  drawBfsStep(graph, data, k);
+  drawGraphTraversalStep(graph, data, k);
 
   // animate: reveal one edge every 400ms
   bfsTimer = setInterval(() => {
     k++;
-    drawBfsStep(graph, data, k);
+    drawGraphTraversalStep(graph, data, k);
 
     if (k >= edges.length) {
       stopBfsAnimation();
@@ -80,6 +80,30 @@ runBtn.addEventListener("click", async () => {
 
   return;
 }
+if (algoEl.value === "DFS") {
+  stopBfsAnimation(); // you can rename this to stopTraversalAnimation later
+
+  const edges = data.edges || [];
+  const orderText = (data.order || []).join(" ");
+
+  outputPrintEl.textContent =
+    `Order: ${orderText}\n\n` +
+    edges.map(e => `${e[0]}, ${e[1]}`).join("\n");
+
+  const graph = parseAdjMatrix(lastInputText);
+
+  let k = 0;
+  drawGraphTraversalStep(graph, data, k);
+
+  bfsTimer = setInterval(() => {
+    k++;
+    drawGraphTraversalStep(graph, data, k);
+    if (k >= edges.length) stopBfsAnimation();
+  }, 400);
+
+  return;
+}
+
 });
 
 
@@ -159,9 +183,9 @@ fileEl.addEventListener("change", async () => {
   if (algoEl.value === "SKYLINE") {
     const buildings = parseBuildings(text);
     drawBuildings(buildings);
-  } else if (algoEl.value === "BFS") {
-    const graph = parseAdjMatrix(text);
-    drawGraphInput(graph);
+  } else if (algoEl.value === "BFS" || algoEl.value === "DFS") {
+  const graph = parseAdjMatrix(text);
+  drawGraphInput(graph);
   }
 });
 
@@ -256,45 +280,13 @@ function layoutCircle(n) {
 }
 
 
-function drawGraphInput(graph) {
-  clearCanvas();
-  const { n, adj } = graph;
-  const pos = layoutCircle(n);
-
-  // edges (thin)
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = "#000";
-  for (let i = 0; i < n; i++) {
-    for (let j = i + 1; j < n; j++) { // avoid double-drawing if undirected
-      if (adj[i][j] !== 0 || adj[j][i] !== 0) {
-        ctx.beginPath();
-        ctx.moveTo(pos[i].x, pos[i].y);
-        ctx.lineTo(pos[j].x, pos[j].y);
-        ctx.stroke();
-      }
-    }
-  }
-
-  // nodes
-  for (let i = 0; i < n; i++) {
-    ctx.beginPath();
-    ctx.arc(pos[i].x, pos[i].y, 12, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.font = "14px system-ui";
-    ctx.fillStyle = "#000";
-    ctx.fillText(String(i), pos[i].x - 4, pos[i].y + 5);
-  }
-
-  return pos; // return positions so we can reuse for BFS output
-}
-function drawBfsStep(graph, bfsData, k) {
+function drawGraphTraversalStep(graph, data, k) {
   clearCanvas();
 
   const { n, adj } = graph;
   const pos = layoutCircle(n);
 
-  // 1) draw all graph edges lightly
+  // draw all edges lightly
   ctx.lineWidth = 1;
   ctx.strokeStyle = "#bbb";
   for (let i = 0; i < n; i++) {
@@ -308,12 +300,12 @@ function drawBfsStep(graph, bfsData, k) {
     }
   }
 
-  // 2) draw BFS tree edges (first k edges) thick
-  const edges = bfsData.edges || [];
+  // draw traversal tree edges thick (first k edges)
+  const edges = data.edges || [];
   ctx.lineWidth = 3;
   ctx.strokeStyle = "#000";
-
   const upto = Math.min(k, edges.length);
+
   for (let i = 0; i < upto; i++) {
     const [u, v] = edges[i];
     ctx.beginPath();
@@ -322,7 +314,7 @@ function drawBfsStep(graph, bfsData, k) {
     ctx.stroke();
   }
 
-  // 3) draw nodes
+  // draw nodes
   ctx.lineWidth = 2;
   ctx.strokeStyle = "#000";
   ctx.font = "14px system-ui";
@@ -335,10 +327,9 @@ function drawBfsStep(graph, bfsData, k) {
     ctx.fillText(String(i), pos[i].x - 4, pos[i].y + 5);
   }
 
-  // 4) optional: show discovery rank up to k+1 nodes
-  const order = bfsData.order || [];
+  // discovery rank labels (optional)
+  const order = data.order || [];
   const shown = Math.min(order.length, k + 1);
-
   ctx.font = "12px system-ui";
   for (let idx = 0; idx < shown; idx++) {
     const node = order[idx];
@@ -346,7 +337,8 @@ function drawBfsStep(graph, bfsData, k) {
   }
 }
 
-/* If you want to draw bfs directly
+
+/* If you want to draw bfs instantly without animation, use this:
 function drawBfsOutput(graph, bfsData) {
   clearCanvas();
   const { n, adj } = graph;
