@@ -5,8 +5,10 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 
 import com.example.demo.algorithm.BfsSolver;
+import com.example.demo.algorithm.ConvexHullSolver;
 import com.example.demo.algorithm.DfsSolver;
 import com.example.demo.algorithm.SkylineSolver;
+
 
 
 
@@ -40,6 +42,18 @@ public class AlgorithmService {
                 "source", r.source(),
                 "order", r.order(),
                 "edges", r.edges()
+                );
+            }
+            case "HULL" -> {
+                var r = ConvexHullSolver.solveFromText(input);
+                return Map.of(
+                "algo", "HULL",
+                "meta", r.meta(),
+                "inputPoints", r.inputPoints(),
+                "hullPoints", r.hullPoints(),
+                "steps", r.steps(),
+                "inputRaw", r.inputRaw(),
+                "hullRaw", r.hullRaw()
                 );
             }
             default -> {

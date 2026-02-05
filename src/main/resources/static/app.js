@@ -32,7 +32,8 @@ function stopBfsAnimation() {
   }
 }
 
-runBtn.addEventListener("click", async () => {
+runBtn.addEventListener("click", async (e) => {
+  e.preventDefault();
   const file = fileEl.files[0];
   if (!file) {
     outputPrintEl.textContent = "Pick an input file first.";
@@ -43,8 +44,26 @@ runBtn.addEventListener("click", async () => {
   form.append("algorithm", algoEl.value);
   form.append("file", file);
 
+  //const res = await fetch("/run", { method: "POST", body: form });
+  //const data = await res.json();
   const res = await fetch("/run", { method: "POST", body: form });
-  const data = await res.json();
+
+let data;
+try {
+  data = await res.json();
+} catch (err) {
+  const txt = await res.text();
+  outputPrintEl.textContent = "Server did not return JSON:\n" + txt;
+  console.error("Non-JSON response:", txt);
+  return;
+}
+
+if (!res.ok || data.error) {
+  outputPrintEl.textContent = "Server error:\n" + (data.error || ("HTTP " + res.status));
+  console.error("Run error:", data);
+  return;
+}
+
 
   if (algoEl.value === "SKYLINE") {
     // print denormalized skyline values (like you already did)
@@ -103,6 +122,17 @@ if (algoEl.value === "DFS") {
 
   return;
 }
+if (algoEl.value === "HULL") {
+  stopBfsAnimation(); // reuse same timer-stopper pattern (rename later if you want)
+
+  // print hull raw values nicely
+  const hullRaw = data.hullRaw || [];
+  outputPrintEl.textContent = hullRaw.map(p => `${p.x} ${p.y}`).join("\n");
+
+  animateHull(data);
+  return;
+}
+
 
 });
 
@@ -186,7 +216,12 @@ fileEl.addEventListener("change", async () => {
   } else if (algoEl.value === "BFS" || algoEl.value === "DFS") {
   const graph = parseAdjMatrix(text);
   drawGraphInput(graph);
-  }
+  } else if (algoEl.value === "HULL") {
+
+  const pts = parsePoints(text);
+  drawPointsInput(pts);
+}
+
 });
 
 
@@ -336,8 +371,6 @@ function drawGraphTraversalStep(graph, data, k) {
     ctx.fillText(`#${idx}`, pos[node].x + 14, pos[node].y - 10);
   }
 }
-
-
 /* If you want to draw bfs instantly without animation, use this:
 function drawBfsOutput(graph, bfsData) {
   clearCanvas();
@@ -396,5 +429,141 @@ function drawBfsOutput(graph, bfsData) {
   }
 }
  */
+// Convex Hull
+
+function parsePoints(text) {
+  const lines = text
+    .split(/\r?\n/)
+    .map(l => l.trim())
+    .filter(l => l.length > 0 && !l.startsWith("#"));
+
+  const pts = [];
+  for (const line of lines) {
+    const parts = line.split(/[, \t]+/).filter(Boolean);
+
+    if (parts.length === 1) continue; // ignore count
+    if (parts.length < 2) continue;
+
+    const x = parseFloat(parts[0]);
+    const y = parseFloat(parts[1]);
+    if (Number.isFinite(x) && Number.isFinite(y)) pts.push({ x, y });
+  }
+  return pts;
+}
+
+function drawPointsInput(pts) {
+  clearCanvas();
+  if (!pts.length) return;
+
+  // scale to canvas with padding
+  const minX = Math.min(...pts.map(p => p.x));
+  const maxX = Math.max(...pts.map(p => p.x));
+  const minY = Math.min(...pts.map(p => p.y));
+  const maxY = Math.max(...pts.map(p => p.y));
+
+  const dx = Math.max(1, maxX - minX);
+  const dy = Math.max(1, maxY - minY);
+
+  ctx.fillStyle = "#000";
+  for (const p of pts) {
+    const x = PAD + ((p.x - minX) / dx) * (W - PAD - PAD);
+    const y = (H - PAD) - ((p.y - minY) / dy) * (H - PAD - PAD);
+    ctx.beginPath();
+    ctx.arc(x, y, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+function animateHull(data) {
+  stopBfsAnimation();
+
+  const pts = data.inputPoints || [];
+  const steps = data.steps || [];
+  const hull = data.hullPoints || [];
+  if (!pts.length) return;
+
+  function toCanvas(p) {
+    return {
+      x: PAD + p.x * (W - PAD - PAD),
+      y: (H - PAD) - p.y * (H - PAD - PAD),
+    };
+  }
+
+  function drawAllPoints() {
+    ctx.fillStyle = "#000";
+    for (const p of pts) {
+      const q = toCanvas(p);
+      ctx.beginPath();
+      ctx.arc(q.x, q.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawFinalHull() {
+    if (hull.length < 2) return;
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    const first = toCanvas(hull[0]);
+    ctx.moveTo(first.x, first.y);
+    for (let k = 1; k < hull.length; k++) {
+      const q = toCanvas(hull[k]);
+      ctx.lineTo(q.x, q.y);
+    }
+    ctx.lineTo(first.x, first.y); // close polygon
+    ctx.stroke();
+  }
+
+  let i = 0;
+
+  bfsTimer = setInterval(() => {
+    clearCanvas();
+    drawAllPoints();
+
+    if (i >= steps.length) {
+      drawFinalHull();
+      outputPrintEl.textContent =
+        `Hull complete\n` +
+        (data.hullRaw ? data.hullRaw.map(p => `${p.x} ${p.y}`).join("\n") : "");
+      stopBfsAnimation();
+      return;
+    }
+
+    const s = steps[i];
+    const stack = s.stack || [];
+
+    // draw current stack (partial hull)
+    if (stack.length >= 2) {
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      const first = toCanvas(stack[0]);
+      ctx.moveTo(first.x, first.y);
+      for (let k = 1; k < stack.length; k++) {
+        const q = toCanvas(stack[k]);
+        ctx.lineTo(q.x, q.y);
+      }
+      ctx.stroke();
+    }
+
+    // highlight candidate point
+    if (s.candidate) {
+      const c = toCanvas(s.candidate);
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, 6, 0, Math.PI * 2);
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // optional: print step info in output panel
+    // (shows the turn result / pop reason)
+    outputPrintEl.textContent =
+      `Step ${i + 1}/${steps.length}\n` +
+      `${s.phase.toUpperCase()} | ${s.action.toUpperCase()} | cross=${s.cross}\n\n` +
+      (data.hullRaw ? data.hullRaw.map(p => `${p.x} ${p.y}`).join("\n") : "");
+
+    i++;
+  }, 400);
+}
 
 
