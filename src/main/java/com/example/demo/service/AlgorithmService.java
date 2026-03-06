@@ -9,12 +9,21 @@ import com.example.demo.algorithm.ConvexHullSolver;
 import com.example.demo.algorithm.DfsSolver;
 import com.example.demo.algorithm.SkylineSolver;
 
-
-
-
+/**
+ * Backend dispatcher for algorithm runs.
+ * Routes the selected algorithm name to the correct solver and returns a JSON-friendly response map.
+ */
 @Service
 public class AlgorithmService {
 
+    /**
+     * Runs the requested algorithm on the given input text and returns
+     * a Map<String, Object> that can be serialized directly into JSON.
+     *
+     * @param algorithm algorithm identifier (e.g., SKYLINE, BFS, DFS, HULL)
+     * @param input     raw file/text input
+     * @return JSON-friendly result map for the frontend
+     */
     public Map<String, Object> run(String algorithm, String input) {
         switch (algorithm.toUpperCase()) {
             case "SKYLINE" -> {
@@ -57,6 +66,7 @@ public class AlgorithmService {
                 );
             }
             default -> {
+                // If the algorithm string is not recognized, return an error payload
                 return Map.of("error", "Unknown algorithm: " + algorithm);
             }
         }

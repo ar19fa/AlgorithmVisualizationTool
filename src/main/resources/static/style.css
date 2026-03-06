@@ -1,8 +1,52 @@
-.row { display:flex; gap:12px; align-items:center; margin-bottom:12px; }
-.vizLayout { display: flex; gap: 20px; align-items: flex-start; }
-.viz { border: 1px solid #333; display: inline-block; }
-.side { width: 360px; }
-.sideTitle { font-weight: 600; margin: 6px 0; }
-pre { background: #f6f6f6; padding: 10px; white-space: pre-wrap; }
-pre { background:#f6f6f6; padding:8px; width:520px; white-space:pre-wrap; }
-body { font-family: system-ui, Arial, sans-serif; padding: 16px; }
+/* ------------------------------
+   Top control row (dropdown + file picker + button)
+-------------------------------- */
+.row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+/* ------------------------------
+   Main page layout:
+   - left: canvas visualization
+   - right: input/output panel
+-------------------------------- */
+.vizLayout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+/* Canvas container border so the visualization area is clearly visible */
+.viz {
+  border: 1px solid #333;
+  display: inline-block;
+}
+
+/* Side panel container (holds the <pre> "before/after" outputs) */
+.side {
+  width: 360px;
+}
+
+/* Titles above each <pre> block */
+.sideTitle {
+  font-weight: 600;
+  margin: 6px 0;
+}
+
+/* Text output panels used to display the raw input file and
+   the algorithm's processed output in the side panel */
+pre {
+  background: #f6f6f6;   /* same background, kept as-is */
+  padding: 8px;          /* this overrides the first padding */
+  width: 520px;          /* fixed width for readable blocks */
+  white-space: pre-wrap; /* same whitespace rule, kept as-is */
+}
+
+/* Base page typography + spacing */
+body {
+  font-family: system-ui, Arial, sans-serif;
+  padding: 16px;
+}

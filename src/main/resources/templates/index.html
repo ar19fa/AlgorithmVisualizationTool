@@ -1,38 +1,52 @@
 <!doctype html>
 <html>
-<head>
-  <meta charset="utf-8" />
-  <title>Algorithm Visualizer</title>
-  <link rel="stylesheet" href="/style.css">
-</head>
-<body>
-  <div class="row">
-    <select id="algo">
-      <option value="SKYLINE">Skyline</option>
-      <option value="BFS">BFS</option>
-      <option value="DFS">Iterative DFS</option>
-      <option value="HULL">Convex Hull</option>
+  <head>
+    <!-- Basic document metadata -->
+    <meta charset="utf-8" />
+    <title>Algorithm Visualizer</title>
 
-    </select>
+    <!-- Global site styling -->
+    <link rel="stylesheet" href="/style.css" />
+  </head>
 
-    <input id="file" type="file" accept=".txt,.csv" />
-    <button id="runBtn" type="button">Apply</button>
-  </div>
+  <body>
+    <!-- Top control bar: algorithm picker + file upload + run button -->
+    <div class="row">
+      <!-- Algorithm selection (read by app.js via #algo) -->
+      <select id="algo">
+        <option value="SKYLINE">Skyline</option>
+        <option value="BFS">BFS</option>
+        <option value="DFS">Iterative DFS</option>
+        <option value="HULL">Convex Hull</option>
+      </select>
 
-  <div class="vizLayout">
-  <div class="viz">
-    <canvas id="canvas"></canvas>
-  </div>
+      <!-- Input file selector (txt/csv). app.js reads file contents via #file -->
+      <input id="file" type="file" accept=".txt,.csv" />
 
-  <div class="side">
-    <div class="sideTitle">Input (as read)</div>
-    <pre id="inputPrint"></pre>
+      <!-- Trigger algorithm processing/visualization -->
+      <button id="runBtn" type="button">Apply</button>
+    </div>
 
-    <div class="sideTitle">Output</div>
-    <pre id="outputPrint"></pre>
-  </div>
-</div>
+    <!-- Main layout: canvas visualization on the left, before/after text on the right -->
+    <div class="vizLayout">
+      <!-- Visualization area (canvas is where animations are drawn) -->
+      <div class="viz">
+        <canvas id="canvas"></canvas>
+      </div>
 
-  <script src="/app.js"></script>
-</body>
+      <!-- Side panel: shows raw input + processed output -->
+      <div class="side">
+        <!-- "Before" view: raw file contents as read -->
+        <div class="sideTitle">Input (as read)</div>
+        <pre id="inputPrint"></pre>
+
+        <!-- "After" view: algorithm results / processed output -->
+        <div class="sideTitle">Output</div>
+        <pre id="outputPrint"></pre>
+      </div>
+    </div>
+
+    <!-- Main application script (wires UI + parsing + canvas rendering) -->
+    <script src="/app.js"></script>
+  </body>
 </html>

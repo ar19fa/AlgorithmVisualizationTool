@@ -1,37 +1,75 @@
+// --------------------------------------------------
+// DOM References
+// --------------------------------------------------
+
+// Main controls
 const runBtn = document.getElementById("runBtn");
 const algoEl = document.getElementById("algo");
 const fileEl = document.getElementById("file");
+// Side-panel text output areas
 const inputPrintEl = document.getElementById("inputPrint");
 const outputPrintEl = document.getElementById("outputPrint");
 
+// Canvas setup
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
+
+// Stores the most recently uploaded input text so it can be reused
+// when drawing/animating BFS, DFS, and Hull results
 let lastInputText = "";
 
 
+// --------------------------------------------------
+// Canvas Sizing / High-DPI Support
+// --------------------------------------------------
+
+// CSS display size of the canvas
 const CSS_SIZE = 500;
+// Device pixel ratio (used so canvas looks sharp on retina/high-DPI screens)
 const dpr = window.devicePixelRatio || 1;
 
+// Set visible canvas size in CSS pixels
 canvas.style.width = CSS_SIZE + "px";
 canvas.style.height = CSS_SIZE + "px";
+
+// Set actual drawing resolution in device pixels
 canvas.width = Math.round(CSS_SIZE * dpr);
 canvas.height = Math.round(CSS_SIZE * dpr);
 
-// draw using CSS pixel coordinates
+// Draw using CSS pixel coordinates even though backing resolution is scaled
 ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
+//Canvas drawing constants
 const W = CSS_SIZE;
 const H = CSS_SIZE;
 const PAD = 20; //padding
-let bfsTimer = null;
 
-function stopBfsAnimation() {
-  if (bfsTimer !== null) {
-    clearInterval(bfsTimer);
-    bfsTimer = null;
+// Shared timer used for BFS / DFS / Hull animations
+let animationTimer = null;
+
+// --------------------------------------------------
+// Animation Control
+// --------------------------------------------------
+
+/**
+ * Stops any currently running animation timer.
+ * Reused by BFS, DFS, and Convex Hull animations.
+ */
+function stopAnimation() {
+  if (animationTimer !== null) {
+    clearInterval(animationTimer);
+    animationTimer = null;
   }
 }
 
+// --------------------------------------------------
+// Main Run Button Handler
+// --------------------------------------------------
+
+/**
+ * Sends the selected file + algorithm to the backend,
+ * receives the solver output, and dispatches to the proper renderer.
+ */
 runBtn.addEventListener("click", async (e) => {
   e.preventDefault();
   const file = fileEl.files[0];
@@ -44,11 +82,12 @@ runBtn.addEventListener("click", async (e) => {
   form.append("algorithm", algoEl.value);
   form.append("file", file);
 
-  //const res = await fetch("/run", { method: "POST", body: form });
-  //const data = await res.json();
+  // Send the uploaded file and algorithm choice to the backend /run endpoint
   const res = await fetch("/run", { method: "POST", body: form });
 
 let data;
+
+// Try to parse JSON response safely
 try {
   data = await res.json();
 } catch (err) {
@@ -58,22 +97,28 @@ try {
   return;
 }
 
+// Handle backend error responses
 if (!res.ok || data.error) {
   outputPrintEl.textContent = "Server error:\n" + (data.error || ("HTTP " + res.status));
   console.error("Run error:", data);
   return;
 }
 
-
+  // ----------------------------
+  // Skyline Output + Drawing
+  // ----------------------------
   if (algoEl.value === "SKYLINE") {
-    // print denormalized skyline values (like you already did)
+    // Convert normalized skyline points back into raw coordinate values for display
     const raw = denormalizeSkyline(data);
     outputPrintEl.textContent = raw.map(pt => `${pt.x} ${pt.y}`).join("\n");
     drawSkyline(data);
   }
 
-  if (algoEl.value === "BFS") {
-  stopBfsAnimation(); // stop any prior animation
+  // ----------------------------
+  // BFS / DFS Output + Animation
+  // ----------------------------
+  if (algoEl.value === "BFS" || algoEl.value === "DFS") {
+  stopAnimation(); // stop any prior animation
 
   const edges = data.edges || [];
   const orderText = (data.order || []).join(" ");
@@ -88,44 +133,25 @@ if (!res.ok || data.error) {
   drawGraphTraversalStep(graph, data, k);
 
   // animate: reveal one edge every 400ms
-  bfsTimer = setInterval(() => {
+  animationTimer = setInterval(() => {
     k++;
     drawGraphTraversalStep(graph, data, k);
 
     if (k >= edges.length) {
-      stopBfsAnimation();
+      stopAnimation();
     }
   }, 400);
 
   return;
 }
-if (algoEl.value === "DFS") {
-  stopBfsAnimation(); // you can rename this to stopTraversalAnimation later
 
-  const edges = data.edges || [];
-  const orderText = (data.order || []).join(" ");
-
-  outputPrintEl.textContent =
-    `Order: ${orderText}\n\n` +
-    edges.map(e => `${e[0]}, ${e[1]}`).join("\n");
-
-  const graph = parseAdjMatrix(lastInputText);
-
-  let k = 0;
-  drawGraphTraversalStep(graph, data, k);
-
-  bfsTimer = setInterval(() => {
-    k++;
-    drawGraphTraversalStep(graph, data, k);
-    if (k >= edges.length) stopBfsAnimation();
-  }, 400);
-
-  return;
-}
+// ----------------------------
+// Convex Hull Output + Animation
+// ----------------------------
 if (algoEl.value === "HULL") {
-  stopBfsAnimation(); // reuse same timer-stopper pattern (rename later if you want)
+  stopAnimation(); //stop any existing animation
 
-  // print hull raw values nicely
+  // Print raw hull coordinates in the output panel
   const hullRaw = data.hullRaw || [];
   outputPrintEl.textContent = hullRaw.map(p => `${p.x} ${p.y}`).join("\n");
 
@@ -136,15 +162,52 @@ if (algoEl.value === "HULL") {
 
 });
 
+// --------------------------------------------------
+// Canvas Utilities
+// --------------------------------------------------
 
+/**
+ * Clears the canvas and redraws the background, grid, and border.
+ */
 function clearCanvas() {
   ctx.clearRect(0, 0, W, H);
+
+  // background
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = "#000";
+
+  // subtle grid
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(0,0,0,0.06)";
+  for (let x = 0; x <= W; x += 25) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for (let y = 0; y <= H; y += 25) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+
+  // border
+  ctx.strokeStyle = "rgba(0,0,0,0.35)";
+  ctx.lineWidth = 2;
   ctx.strokeRect(0, 0, W, H);
 }
 
+// --------------------------------------------------
+// Skyline Input Parsing + Input Drawing
+// --------------------------------------------------
+
+/**
+ * Parses building data from input text.
+ * Expected format per building line:
+ *   L H R
+ * or
+ *   L, H, R
+ *
+ * Ignores:
+ * - blank lines
+ * - comment lines starting with '#'
+ * - single-number count lines
+ */
 function parseBuildings(text) {
   const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith("#"));
   const buildings = [];
@@ -168,6 +231,9 @@ function parseBuildings(text) {
   return buildings;
 }
 
+/**
+ * Draws the raw input buildings as rectangles on the canvas.
+ */
 function drawBuildings(buildings) {
   clearCanvas();
   if (!buildings.length) return;
@@ -192,16 +258,27 @@ function drawBuildings(buildings) {
     ctx.strokeRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
   }
 }
-// When user selects an input file: draw the INPUT buildings immediately
+
+// --------------------------------------------------
+// File Selection Handler
+// --------------------------------------------------
+
+/**
+ * When the user selects a file:
+ * - read and print the input text
+ * - clear old output
+ * - immediately preview the raw input visualization for the selected algorithm
+ */
 fileEl.addEventListener("change", async () => {
   const file = fileEl.files[0];
-  stopBfsAnimation();
+  stopAnimation();
 
   if (!file) return;
 
   const text = await file.text();
   lastInputText = text;
 
+  // Show cleaned input text in the side panel
   inputPrintEl.textContent = text
     .split(/\r?\n/)
     .map(l => l.trim())
@@ -215,7 +292,7 @@ fileEl.addEventListener("change", async () => {
     drawBuildings(buildings);
   } else if (algoEl.value === "BFS" || algoEl.value === "DFS") {
   const graph = parseAdjMatrix(text);
-  drawGraphInput(graph);
+  //drawGraphInput(graph);
   } else if (algoEl.value === "HULL") {
 
   const pts = parsePoints(text);
@@ -224,9 +301,14 @@ fileEl.addEventListener("change", async () => {
 
 });
 
+// --------------------------------------------------
+// Skyline Output Drawing
+// --------------------------------------------------
 
-
-
+/**
+ * Draws the skyline polyline returned by the backend.
+ * Input points are normalized to [0,1] space.
+ */
 function drawSkyline(data) {
   clearCanvas();
 
@@ -238,21 +320,21 @@ function drawSkyline(data) {
   ctx.beginPath();
   ctx.strokeStyle = "#000";
 
-  // Start at baseline under first x, then go up plus padding
+  // Start at the baseline under the first x-coordinate, then go up to the first height
   let x0 = PAD + pts[0].x * (W - 2 * PAD);
   let y0 = (H) - pts[0].y * (H - 2 * PAD);
  
 
   ctx.moveTo(x0, H);   // baseline
-  ctx.lineTo(x0, y0);  // up to first height
+  ctx.lineTo(x0, y0);  // rise to first skyline height
 
   for (let i = 1; i < pts.length; i++) {
     const x1 = PAD + pts[i].x * (W - 2 * PAD);
     const y1 = (H) - pts[i].y * (H - 2 * PAD);
 
-
     // horizontal to next x at current height
     ctx.lineTo(x1, y0);
+
     // vertical to next height
     ctx.lineTo(x1, y1);
 
@@ -262,6 +344,11 @@ function drawSkyline(data) {
 
   ctx.stroke();
 }
+
+/**
+ * Converts normalized skyline points back into raw coordinate values
+ * so they can be displayed in the output panel.
+ */
 function denormalizeSkyline(data) {
   const pts = data.points || [];
   const meta = data.meta || {};
@@ -277,6 +364,18 @@ function denormalizeSkyline(data) {
     return { x, y };
   });
 }
+
+// --------------------------------------------------
+// Graph Parsing + Layout Helpers
+// --------------------------------------------------
+
+/**
+ * Parses an adjacency matrix from text input.
+ *
+ * Expected format:
+ *   Line 1: n
+ *   Next n lines: adjacency matrix rows
+ */
 function parseAdjMatrix(text) {
   const lines = text
     .split(/\r?\n/)
@@ -293,6 +392,9 @@ function parseAdjMatrix(text) {
   return { n, adj };
 }
 
+/**
+ * Places graph vertices evenly around a circle for graph visualization.
+ */
 function layoutCircle(n) {
   const left = PAD;
   const right = PAD;
@@ -314,12 +416,21 @@ function layoutCircle(n) {
   return pos;
 }
 
+// --------------------------------------------------
+// BFS / DFS Traversal Drawing
+// --------------------------------------------------
 
+/**
+ * Draws one animation frame of a BFS or DFS traversal.
+ *
+ * k = number of traversal edges currently revealed.
+ */
 function drawGraphTraversalStep(graph, data, k) {
   clearCanvas();
 
   const { n, adj } = graph;
   const pos = layoutCircle(n);
+  
 
   // draw all edges lightly
   ctx.lineWidth = 1;
@@ -349,25 +460,40 @@ function drawGraphTraversalStep(graph, data, k) {
     ctx.stroke();
   }
 
-  // draw nodes
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = "#000";
-  ctx.font = "14px system-ui";
-  ctx.fillStyle = "#000";
+  // Determine which nodes have been visited so far
+  const order = data.order || [];
+  const shownNodes = new Set(order.slice(0, Math.min(order.length, k + 1)));
 
+  // Current node being emphasize
+  const current = order[Math.min(k, order.length - 1)];
+  
+  //Draw graph nodes
   for (let i = 0; i < n; i++) {
     ctx.beginPath();
     ctx.arc(pos[i].x, pos[i].y, 12, 0, Math.PI * 2);
+
+    // Fill visited nodes lightly
+    if (shownNodes.has(i)) {
+      ctx.fillStyle = "rgba(0,0,0,0.08)";
+      ctx.fill();
+    }
+
+    // Thicker border on current node
+    ctx.lineWidth = (i === current) ? 4 : 2;
+    ctx.strokeStyle = "#000";
     ctx.stroke();
+
+    ctx.font = "14px system-ui";
+    ctx.fillStyle = "#000";
     ctx.fillText(String(i), pos[i].x - 4, pos[i].y + 5);
   }
 
-  // discovery rank labels (optional)
-  const order = data.order || [];
-  const shown = Math.min(order.length, k + 1);
+  // Draw discovery rank labels (#0, #1, #2, ...)
+  const orderr = data.order || [];
+  const shown = Math.min(orderr.length, k + 1);
   ctx.font = "12px system-ui";
   for (let idx = 0; idx < shown; idx++) {
-    const node = order[idx];
+    const node = orderr[idx];
     ctx.fillText(`#${idx}`, pos[node].x + 14, pos[node].y - 10);
   }
 }
@@ -429,8 +555,15 @@ function drawBfsOutput(graph, bfsData) {
   }
 }
  */
-// Convex Hull
 
+// --------------------------------------------------
+// Convex Hull Input Parsing + Input Drawing
+// --------------------------------------------------
+
+/**
+ * Parses raw (x, y) point coordinates from text input.
+ * Accepts comma and/or whitespace separated values.
+ */
 function parsePoints(text) {
   const lines = text
     .split(/\r?\n/)
@@ -451,6 +584,9 @@ function parsePoints(text) {
   return pts;
 }
 
+/**
+ * Draws the raw input points before convex hull processing.
+ */
 function drawPointsInput(pts) {
   clearCanvas();
   if (!pts.length) return;
@@ -473,14 +609,26 @@ function drawPointsInput(pts) {
     ctx.fill();
   }
 }
+
+// --------------------------------------------------
+// Convex Hull Animation
+// --------------------------------------------------
+
+/**
+ * Animates the Monotonic Chain convex hull construction
+ * using the recorded backend step list.
+ */
 function animateHull(data) {
-  stopBfsAnimation();
+  stopAnimation();
 
   const pts = data.inputPoints || [];
   const steps = data.steps || [];
-  const hull = data.hullPoints || [];
+  //const hull = data.hullPoints || [];
   if (!pts.length) return;
 
+  /**
+   * Converts normalized point coordinates into canvas coordinates.
+   */
   function toCanvas(p) {
     return {
       x: PAD + p.x * (W - PAD - PAD),
@@ -488,6 +636,9 @@ function animateHull(data) {
     };
   }
 
+  /**
+   * Draws all original input points.
+   */
   function drawAllPoints() {
     ctx.fillStyle = "#000";
     for (const p of pts) {
@@ -498,42 +649,18 @@ function animateHull(data) {
     }
   }
 
+  /**
+   * Draws the final lower and upper hull stacks after the animation finishes.
+   */
   function drawFinalHull() {
-    if (hull.length < 2) return;
-    ctx.strokeStyle = "#000";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    const first = toCanvas(hull[0]);
-    ctx.moveTo(first.x, first.y);
-    for (let k = 1; k < hull.length; k++) {
-      const q = toCanvas(hull[k]);
-      ctx.lineTo(q.x, q.y);
-    }
-    ctx.lineTo(first.x, first.y); // close polygon
-    ctx.stroke();
-  }
+    const lowerFinal =
+      [...steps].reverse().find(st => st.phase === "lower" && st.stack && st.stack.length >= 2)?.stack || [];
+    const upperFinal =
+      [...steps].reverse().find(st => st.phase === "upper" && st.stack && st.stack.length >= 2)?.stack || [];
 
-  let i = 0;
-
-  bfsTimer = setInterval(() => {
-    clearCanvas();
-    drawAllPoints();
-
-    if (i >= steps.length) {
-      drawFinalHull();
-      outputPrintEl.textContent =
-        `Hull complete\n` +
-        (data.hullRaw ? data.hullRaw.map(p => `${p.x} ${p.y}`).join("\n") : "");
-      stopBfsAnimation();
-      return;
-    }
-
-    const s = steps[i];
-    const stack = s.stack || [];
-
-    // draw current stack (partial hull)
-    if (stack.length >= 2) {
-      ctx.strokeStyle = "#000";
+    function drawStack(stack, phase) {
+      if (!stack || stack.length < 2) return;
+      ctx.strokeStyle = hullColor(phase);
       ctx.lineWidth = 3;
       ctx.beginPath();
       const first = toCanvas(stack[0]);
@@ -545,25 +672,95 @@ function animateHull(data) {
       ctx.stroke();
     }
 
-    // highlight candidate point
+    drawStack(lowerFinal, "lower");
+    drawStack(upperFinal, "upper");
+  }
+
+  /**
+   * Returns the color used for each hull-building phase.
+   * - lower hull = blue
+   * - upper hull = green
+   */
+  function hullColor(phase) {
+    return phase === "upper" ? "#00aa00" : "#0000cc"; 
+  }
+
+  let i = 0;
+
+  // If all steps have been shown, draw final hull and stop animation
+  animationTimer = setInterval(() => {
+    clearCanvas();
+    drawAllPoints();
+
+    if (i >= steps.length) {
+      drawFinalHull();
+      outputPrintEl.textContent =
+        `Hull complete\n` +
+        (data.hullRaw ? data.hullRaw.map(p => `${p.x} ${p.y}`).join("\n") : "");
+      stopAnimation();
+      return;
+    }
+
+    const s = steps[i];
+    const stack = s.stack || [];
+
+    // Draw all previously completed hull segments
+    if (i > 0) {
+      for (let j = 0; j < i; j++) {
+        const prevStep = steps[j];
+        if (prevStep.stack && prevStep.stack.length >= 2) {
+          ctx.strokeStyle = hullColor(prevStep.phase);
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          const first = toCanvas(prevStep.stack[0]);
+          ctx.moveTo(first.x, first.y);
+          for (let k = 1; k < prevStep.stack.length; k++) {
+            const q = toCanvas(prevStep.stack[k]);
+            ctx.lineTo(q.x, q.y);
+          }
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Draw current stack for the current step
+    if (stack.length >= 2) {
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.strokeStyle = hullColor(s.phase);
+      const first = toCanvas(stack[0]);
+      ctx.moveTo(first.x, first.y);
+      
+      for (let k = 1; k < stack.length; k++) {
+        const currentPoint = stack[k];
+        
+        const q = toCanvas(currentPoint);
+        ctx.lineTo(q.x, q.y);
+        ctx.stroke();
+        
+         // Start a new segment if there are more points left in the current stack
+        if (k < stack.length - 1) {
+          ctx.beginPath();
+          ctx.moveTo(q.x, q.y);
+        }
+      }
+    }
+
+    // highlight current candidate point
     if (s.candidate) {
       const c = toCanvas(s.candidate);
       ctx.beginPath();
       ctx.arc(c.x, c.y, 6, 0, Math.PI * 2);
-      ctx.strokeStyle = "#000";
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#ff6600";
+      ctx.lineWidth = 3;
       ctx.stroke();
     }
 
-    // optional: print step info in output panel
-    // (shows the turn result / pop reason)
     outputPrintEl.textContent =
       `Step ${i + 1}/${steps.length}\n` +
       `${s.phase.toUpperCase()} | ${s.action.toUpperCase()} | cross=${s.cross}\n\n` +
       (data.hullRaw ? data.hullRaw.map(p => `${p.x} ${p.y}`).join("\n") : "");
 
     i++;
-  }, 400);
+  }, 200);
 }
-
-
